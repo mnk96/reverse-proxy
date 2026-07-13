@@ -42,7 +42,7 @@ async def handle_metrics(reader, writer):
         metrics_json = json.dumps(metrics_list[address[0]])
         writer.write(metrics_json.encode('utf-8'))
         logger.info('Данные метрик Для %s: %s', address[0], metrics_json)
-        await writer.drain()    
+        await writer.drain()
     except Exception as e:
         logger.info('Ошибка получения метрик %s', e)
     finally:
