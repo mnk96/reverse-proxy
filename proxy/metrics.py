@@ -14,8 +14,11 @@ def backend_metrics_request(backend):
         }
     else:
         metrics_list[backend]['request'] += 1
-        metrics_list[backend]['rps'] = (metrics_list[backend]['request'] /
-                                        metrics_list[backend]['all_time'])
+        if metrics_list[backend]['all_time'] == 0:
+            metrics_list[backend]['rps'] = 0
+        else:
+            metrics_list[backend]['rps'] = (metrics_list[backend]['request'] /
+                                            metrics_list[backend]['all_time'])
 
 
 def backend_metrics_time(backend, time):
