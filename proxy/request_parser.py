@@ -32,8 +32,6 @@ class HttpRequestParser:
     def parse_headers(self, data):
         try:
             for line in data:
-                if not line:
-                    break
                 if b':' in line:
                     header_info = line.decode("utf-8").split(': ')
                     self.headers[header_info[0]] = header_info[1]
@@ -43,10 +41,22 @@ class HttpRequestParser:
                             self.keep_alive = False
                         elif header_info[1].lower() == 'keep-alive':
                             self.keep_alive = True
-                else:
-                    self.is_valid = False
         except Exception as e:
             logger.info('Ошибка получения заголовков: %s', e)
+
+    def parser_status_code(data):
+        try:
+            lines = data.split(b'\r\n')
+            if not lines:
+                return
+            first_line = lines[0].decode('utf-8')
+            string = first_line.split(' ')
+            if 'HTTP' in string[0]:
+                logger.info('Cтатуса ответа: %s', string[1])
+            else:
+                return
+        except Exception as e:
+            logger.info('Ошибка получения статуса ответа: %s', e)
 
     def request_parser(self, data):
         """Принимает данные и запускает обработку"""
@@ -60,9 +70,14 @@ class HttpRequestParser:
         header_end = data.find(b'\r\n\r\n')
         if header_end != -1:
             lines = data.split(b'\r\n')
-            self.parse_start_line(lines[0])
-            self.parse_headers(lines[1:])
-            self.body = data[header_end+4:]
+            if lines:
+                self.parse_start_line(lines[0])
+                self.parse_headers(lines[1:header_end])
+                self.body = data[header_end+4:]
+            else:
+                self.is_valid = False
+        else:
+            self.is_valid = False
         return {
             'method': self.method,
             'path': self.path,
