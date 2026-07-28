@@ -8,7 +8,6 @@ import time
 
 SEMAPHORE = Semaphore(config['limits']['max_conns_per_upstream'])
 TIMEOUTS = config['timeouts']
-# parser = HttpRequestParser()
 
 
 async def proxy_server(reader, writer, backend, description):
@@ -18,14 +17,14 @@ async def proxy_server(reader, writer, backend, description):
         try:
             while True:
                 data = await asyncio.wait_for(reader.read(1024),
-                                              timeout=TIMEOUTS['read_ms'])
+                                              timeout=TIMEOUTS['read_ms']/1000)
                 if not data:
                     break
                 if description == 'апстрим':
                     HttpRequestParser.parser_status_code(data)
-                writer.write('Hello world!'.encode('utf-8'))
+                writer.write(data)
                 await asyncio.wait_for(writer.drain(),
-                                       timeout=TIMEOUTS['write_ms'])
+                                       timeout=TIMEOUTS['write_ms']/1000)
                 if data:
                     logger.info('%s: Отправлено %s байт', description,
                                 len(data))
