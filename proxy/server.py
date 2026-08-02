@@ -1,17 +1,15 @@
 import asyncio
 import time
-from asyncio.streams import StreamReader, StreamWriter
 from asyncio import Semaphore
-from request_parser import HttpRequestParser
-from metrics import backend_metrics_request
-from logger import logger
-from proxy_server import proxy_server
-from config import config
+from asyncio.streams import StreamReader, StreamWriter
 
+from config import config
+from logger import logger
+from metrics import backend_metrics_request
+from proxy_server import proxy_server
+from request_parser import HttpRequestParser
 
 parser = HttpRequestParser()
-
-# SEMAPHORE = Semaphore(config['limits']['max_client_conns'])
 
 
 UPSTREAMS = config['upstreams']
@@ -40,7 +38,7 @@ class ConnectionPool:
             key = f'{host}:{port}'
             self.pool_list[key] = []
             self.semaphore[key] = Semaphore(config['limits']['max_client_conns'])
-            for i in range(self.max_size):
+            for _ in range(self.max_size):
                 try:
                     reader, writer = await asyncio.wait_for(
                         asyncio.open_connection(host, port),
@@ -81,7 +79,7 @@ class ConnectionPool:
                     writer.close()
                     await writer.wait_closed()
                     logger.info('Соединение закрыто %s', key)
-
+                self.pool_list[key].pop(0)
                 return writer, reader
             else:
                 logger.info('Найдено мертвое соединение %s', key)
@@ -118,10 +116,8 @@ class ConnectionPool:
             sock = writer.get_extra_info('socket')
             if not sock:
                 return False
-            if sock.fileno() == -1:
-                return False
-            return True
-        except:
+            return sock.fileno() != -1
+        except Exception:
             return False
 
 
@@ -144,14 +140,12 @@ async def init_pool(max_size, timeout, max_request):
 
 async def client_connected(client_reader: StreamReader,
                            client_writer: StreamWriter):
-    """Обработчик клиентa с поддержкой keep-alive"""
-    # logger.info(f"Семафор клиента захвачен (свободно: {SEMAPHORE._value})")
+    """Обработчик клиeнтa c поддержкой keep-alive"""
     address = client_writer.get_extra_info('peername')
     logger.info('Клиент подключен %s', address)
     try:
         async with asyncio.timeout(TIMEOUTS['total_ms']/1000):
             logger.info("Подключение к апстриму")
-            # async with SEMAPHORE:
             url = round_robin_balancer()
             upstream_writer, upstream_reader = await connection_pool.get_pool(
                 url['host'], url['port']
@@ -195,7 +189,7 @@ async def client_connected(client_reader: StreamReader,
                     upstream_writer.close()
                     await upstream_writer.wait_closed()
                     break
-    except asyncio.TimeoutError:
+    except TimeoutError:
         logger.info('Запрос превысил лимит времени')
     except Exception as e:
         logger.info('Ошибка клиента %s', e)
@@ -203,7 +197,6 @@ async def client_connected(client_reader: StreamReader,
         client_writer.close()
         await client_writer.wait_closed()
         logger.info('Клиент отключен %s', address)
-    # logger.info(f"Семафор клиента освобожден (свободно: {SEMAPHORE._value})")
 
 
 async def main_server(host: str, port: int):

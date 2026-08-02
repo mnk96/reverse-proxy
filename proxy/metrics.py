@@ -1,12 +1,13 @@
 import asyncio
-from logger import logger
 import json
+
+from logger import logger
 
 metrics_list = {}
 
 
 def backend_metrics_request(backend):
-    if backend not in metrics_list.keys():
+    if backend not in metrics_list:
         metrics_list[backend] = {
             'request': 1,
             'all_time': 0,
@@ -22,7 +23,7 @@ def backend_metrics_request(backend):
 
 
 def backend_metrics_time(backend, time):
-    if backend not in metrics_list.keys():
+    if backend not in metrics_list:
         metrics_list[backend]['all_time'] = {
             'request': 1,
             'all_time': time,

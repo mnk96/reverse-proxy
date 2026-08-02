@@ -1,7 +1,8 @@
 import asyncio
-from server import main_server
-from metrics import metrics_server
+
 from config import config
+from metrics import metrics_server
+from server import main_server
 
 
 async def main():

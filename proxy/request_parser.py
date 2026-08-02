@@ -3,7 +3,6 @@ from logger import logger
 
 class HttpRequestParser:
     """Минимальный парсер http запросов"""
-    ALLOWED_METHODS = {'GET', 'POST', 'PUT', 'DELETE'}
 
     def __init__(self):
         self.method = ''
@@ -13,6 +12,7 @@ class HttpRequestParser:
         self.body = ''
         self.keep_alive = True
         self.is_valid = True
+        self.allowed_methods = {'GET', 'POST', 'PUT', 'DELETE'}
 
     def parse_start_line(self, line):
         """Парсит первую строку для получения method, path, version"""
@@ -20,7 +20,7 @@ class HttpRequestParser:
             parts = line.decode("utf-8").splitlines()[0].split(' ')
             self.method = parts[0]
             self.path = parts[1]
-            if (self.method.upper() not in self.ALLOWED_METHODS or
+            if (self.method.upper() not in  self.allowed_methods or
                 not self.path or not self.path.startswith('/')):
                 self.is_valid = False
             self.version = parts[2]
@@ -44,7 +44,7 @@ class HttpRequestParser:
         except Exception as e:
             logger.info('Ошибка получения заголовков: %s', e)
 
-    def parser_status_code(data):
+    def parser_status_code(self, data):
         try:
             lines = data.split(b'\r\n')
             if not lines:
@@ -52,7 +52,7 @@ class HttpRequestParser:
             first_line = lines[0].decode('utf-8')
             string = first_line.split(' ')
             if 'HTTP' in string[0]:
-                logger.info('Cтатуса ответа: %s', string[1])
+                logger.info('Cтaтyca ответа: %s', string[1])
             else:
                 return
         except Exception as e:

@@ -1,10 +1,11 @@
 import asyncio
-from asyncio import Semaphore
-from request_parser import HttpRequestParser
-from metrics import backend_metrics_time
-from logger import logger
-from config import config
 import time
+from asyncio import Semaphore
+
+from config import config
+from logger import logger
+from metrics import backend_metrics_time
+from request_parser import HttpRequestParser
 
 SEMAPHORE = Semaphore(config['limits']['max_conns_per_upstream'])
 TIMEOUTS = config['timeouts']
