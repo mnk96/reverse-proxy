@@ -18,14 +18,15 @@ async def proxy_server(reader, writer, backend, description):
         try:
             while True:
                 data = await asyncio.wait_for(reader.read(1024),
-                                              timeout=TIMEOUTS['read_ms']/1000)
+                                                timeout=TIMEOUTS['read_ms']/1000)
                 if not data:
                     break
                 if description == 'апстрим':
-                    HttpRequestParser.parser_status_code(data)
+                    parser = HttpRequestParser()
+                    parser.parser_status_code(data)
                 writer.write(data)
                 await asyncio.wait_for(writer.drain(),
-                                       timeout=TIMEOUTS['write_ms']/1000)
+                                        timeout=TIMEOUTS['write_ms']/1000)
                 if data:
                     logger.info('%s: Отправлено %s байт', description,
                                 len(data))

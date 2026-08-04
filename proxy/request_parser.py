@@ -12,6 +12,8 @@ class HttpRequestParser:
         self.body = ''
         self.keep_alive = True
         self.is_valid = True
+        self.content_length = 0
+        self.end_request = False
         self.allowed_methods = {'GET', 'POST', 'PUT', 'DELETE'}
 
     def parse_start_line(self, line):
@@ -35,7 +37,8 @@ class HttpRequestParser:
                 if b':' in line:
                     header_info = line.decode("utf-8").split(': ')
                     self.headers[header_info[0]] = header_info[1]
-
+                    if header_info[0].lower() == 'content-length':
+                        self.content_length = int(header_info[1])
                     if header_info[0].lower() == 'connection':
                         if header_info[1].lower() == 'close':
                             self.keep_alive = False
@@ -60,13 +63,6 @@ class HttpRequestParser:
 
     def request_parser(self, data):
         """Принимает данные и запускает обработку"""
-        self.method = ''
-        self.path = ''
-        self.version = ''
-        self.headers = {}
-        self.body = ''
-        self.keep_alive = True
-        self.is_valid = True
         header_end = data.find(b'\r\n\r\n')
         if header_end != -1:
             lines = data.split(b'\r\n')
@@ -85,5 +81,7 @@ class HttpRequestParser:
             'header': self.headers,
             'body': self.body,
             'keep_alive': self.keep_alive,
-            'is_valid': self.is_valid
+            'is_valid': self.is_valid,
+            'end_request': self.end_request,
+            'content_length': self.content_length
             }

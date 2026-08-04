@@ -9,12 +9,8 @@ from metrics import backend_metrics_request
 from proxy_server import proxy_server
 from request_parser import HttpRequestParser
 
-parser = HttpRequestParser()
-
-
 UPSTREAMS = config['upstreams']
 TIMEOUTS = config['timeouts']
-parser = HttpRequestParser()
 
 backend_index = 0
 
@@ -69,7 +65,7 @@ class ConnectionPool:
             conn_data = pool[0]
             writer = conn_data['writer']
             reader = conn_data['reader']
-            if self.check_connection_alive(writer):
+            if self.check_connection_alive(writer, key):
                 conn_data['last_used'] = time.time()
                 conn_data['request_count'] += 1
                 self.active_list[writer] = conn_data
@@ -79,13 +75,16 @@ class ConnectionPool:
                     writer.close()
                     await writer.wait_closed()
                     logger.info('Соединение закрыто %s', key)
-                self.pool_list[key].pop(0)
+                    continue
+
                 return writer, reader
             else:
                 logger.info('Найдено мертвое соединение %s', key)
+                self.semaphore[key].release()
                 try:
                     writer.close()
-                    writer.wait_closed()
+                    await writer.wait_closed()
+                    self.pool_list[key].pop(0)
                 except Exception as e:
                     logger.info('Ошибка закрытия мертвого соединения %s: %s',
                                 key, e)
@@ -93,7 +92,6 @@ class ConnectionPool:
             logger.info('Создание нового соединения')
             try:
                 reader, writer = await asyncio.open_connection(host, port)
-                self.pool_list[key] = []
                 conn_data = {
                     'reader': reader,
                     'writer': writer,
@@ -110,10 +108,11 @@ class ConnectionPool:
                 self.semaphore[key].release()
                 raise
 
-    def check_connection_alive(self, writer):
+    def check_connection_alive(self, writer, key):
         """Проверка живо ли соединение"""
         try:
             sock = writer.get_extra_info('socket')
+            self.semaphore[key].release()
             if not sock:
                 return False
             return sock.fileno() != -1
@@ -158,16 +157,39 @@ async def client_connected(client_reader: StreamReader,
             while keep_alive:
                 header_end = -1
                 headers_data = b''
+                parser = HttpRequestParser()
                 while header_end == -1:
                     data = await asyncio.wait_for(client_reader.read(8192),
-                                                  timeout=TIMEOUTS['read_ms']/1000)
+                                                    timeout=TIMEOUTS['read_ms']/1000)
                     if not data:
                         logger.info('Клиент закрыл соединение')
+                        headers_data = b''
+                        body_data = b''
+                        keep_alive = False
                         break
                     headers_data += data
                     header_end = headers_data.find(b'\r\n\r\n')
-                request_info = parser.request_parser(data)
+                request_info = parser.request_parser(headers_data)
+                content_length = request_info['content_length']
+                body_data = headers_data[header_end+4:]
+                while len(body_data) < content_length:
+                    data = await asyncio.wait_for(client_reader.read(8192),
+                                                    timeout=TIMEOUTS['read_ms']/1000)
+                    if not data:
+                        logger.info('Клиент закрыл соединение')
+                        headers_data = b''
+                        body_data = b''
+                        keep_alive = False
+                        break
+                    body_data += data
+                if not keep_alive:
+                    upstream_writer.close()
+                    await upstream_writer.wait_closed()
+                    break
+                parser = HttpRequestParser()
+                request_info = parser.request_parser(headers_data+body_data)
                 valid_request = request_info['is_valid']
+                keep_alive = request_info['keep_alive']
                 if not valid_request:
                     logger.info('Невалидный запрос')
                     keep_alive = False
@@ -176,14 +198,14 @@ async def client_connected(client_reader: StreamReader,
                     break
                 upstream_writer.write(data)
                 await asyncio.wait_for(upstream_writer.drain(),
-                                       timeout=TIMEOUTS['write_ms']/1000)
+                                        timeout=TIMEOUTS['write_ms']/1000)
                 keep_alive = request_info['keep_alive']
                 client_task = asyncio.create_task(
                     proxy_server(client_reader, upstream_writer, address,
-                                 'клиент'))
+                                    'клиент'))
                 upstrem_task = asyncio.create_task(
                     proxy_server(upstream_reader, client_writer, address,
-                                 'апстрим'))
+                                    'апстрим'))
                 await asyncio.gather(upstrem_task, client_task)
                 if not keep_alive:
                     upstream_writer.close()
