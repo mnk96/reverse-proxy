@@ -60,15 +60,17 @@ class ConnectionPool:
             raise
         pool = self.pool_list[key]
         await self.semaphore[key].acquire()
+        logger.info('Семафор захвачен %s(свободно %s)', key, self.semaphore[key]._value)
         # Если есть существующее соединение
         while pool:
             conn_data = pool[0]
             writer = conn_data['writer']
             reader = conn_data['reader']
-            if self.check_connection_alive(writer, key):
+            if self.check_connection_alive(writer):
                 conn_data['last_used'] = time.time()
                 conn_data['request_count'] += 1
                 self.active_list[writer] = conn_data
+                pool.pop(0)
                 logger.info('Переиспользовано соединение %s', key)
                 if conn_data['request_count'] >= config['limits']['max_requests_per_conns']:
                     logger.info('Соединение %s достигло лимита запросов', key)
@@ -76,11 +78,13 @@ class ConnectionPool:
                     await writer.wait_closed()
                     logger.info('Соединение закрыто %s', key)
                     continue
-
+                self.semaphore[key].release()
+                logger.info('Семафор освобожден %s(свободно %s)', key, self.semaphore[key]._value)
                 return writer, reader
             else:
                 logger.info('Найдено мертвое соединение %s', key)
                 self.semaphore[key].release()
+                logger.info('Семафор освобожден %s(свободно %s)', key, self.semaphore[key]._value)
                 try:
                     writer.close()
                     await writer.wait_closed()
@@ -100,19 +104,18 @@ class ConnectionPool:
                     'request_count': 0
                 }
                 self.pool_list[key].append(conn_data)
-                self.semaphore[key] = Semaphore(config['limits']['max_client_conns'])
                 logger.info('Создано новое соединение %s', key)
                 return writer, reader
             except Exception as e:
                 logger.info('Ошибка создания соединения %s', e)
                 self.semaphore[key].release()
+                logger.info('Семафор освобожден %s(свободно %s)', key, self.semaphore[key]._value)
                 raise
 
-    def check_connection_alive(self, writer, key):
+    def check_connection_alive(self, writer):
         """Проверка живо ли соединение"""
         try:
             sock = writer.get_extra_info('socket')
-            self.semaphore[key].release()
             if not sock:
                 return False
             return sock.fileno() != -1
@@ -196,7 +199,7 @@ async def client_connected(client_reader: StreamReader,
                     upstream_writer.close()
                     await upstream_writer.wait_closed()
                     break
-                upstream_writer.write(data)
+                upstream_writer.write(data+body_data)
                 await asyncio.wait_for(upstream_writer.drain(),
                                         timeout=TIMEOUTS['write_ms']/1000)
                 keep_alive = request_info['keep_alive']
