@@ -67,47 +67,42 @@ class ConnectionPool:
         async with self.locks[key]:
             pool = self.pool_list[key]
             # Если есть существующее соединение
-            while pool:
-                conn_data = pool[0]
-                writer = conn_data['writer']
-                reader = conn_data['reader']
-                # Проверяем, что соединение живо и не используется
-                if self.check_connection_alive(writer) and writer not in self.active_list:
-                    conn_data['last_used'] = time.time()
-                    conn_data['request_count'] += 1
-                    self.active_list[writer] = conn_data
-                    pool.pop(0)
-                    logger.info('Переиспользовано соединение %s', key)
-                    # Проверка лимита запросов
-                    if conn_data['request_count'] >= config['limits']['max_requests_per_conns']:
-                        logger.info('Соединение %s достигло лимита запросов', key)
+            while True:
+                if pool:
+                    conn_data = pool[0]
+                    writer = conn_data['writer']
+                    reader = conn_data['reader']
+                    # Проверяем, что соединение живо и не используется
+                    if self.check_connection_alive(writer) and writer not in self.active_list:
+                        conn_data['last_used'] = time.time()
+                        conn_data['request_count'] += 1
+                        self.active_list[writer] = conn_data
+                        pool.pop(0)
+                        logger.info('Переиспользовано соединение %s', key)
+                        # Проверка лимита запросов
+                        if conn_data['request_count'] >= config['limits']['max_requests_per_conns']:
+                            logger.info('Соединение %s достигло лимита запросов', key)
+                            try:
+                                writer.close()
+                                await writer.wait_closed()
+                                logger.info('Соединение закрыто %s', key)
+                            except Exception as e:
+                                logger.info('Ошибка закрытия соединения: %s', e)
+                            del self.active_list[writer]
+                            continue
+                        return writer, reader
+                    else:
+                        if writer in self.active_list:
+                            logger.info('Найдено активное соединение %s', key)
+                            del self.active_list[writer]
+                        else:
+                            logger.info('Найдено мертвое соединение %s', key)
                         try:
                             writer.close()
                             await writer.wait_closed()
-                            logger.info('Соединение закрыто %s', key)
                         except Exception as e:
-                            logger.info('Ошибка закрытия соединения: %s', e)
-                        del self.active_list[key]
-                        self.semaphore[key].release()
-                        logger.info('Семафор освобожден %s(свободно %s)', key,
-                                    self.semaphore[key]._value)
-                        continue
-                    return writer, reader
-                else:
-                    if writer in self.active_list:
-                        logger.info('Найдено активное соединение %s', key)
-                        del self.active_list[writer]
-                    else:
-                        logger.info('Найдено мертвое соединение %s', key)
-                    try:
-                        writer.close()
-                        await writer.wait_closed()
-                    except Exception as e:
-                        logger.info('Ошибка закрытия мертвого соединения %s: %s',
-                                    key, e)
-                    self.semaphore[key].release()
-                    logger.info('Семафор освобожден %s(свободно %s)', key,
-                                self.semaphore[key]._value)
+                            logger.info('Ошибка закрытия мертвого соединения %s: %s',
+                                        key, e)
                 # Создаем новое соединение
                 logger.info('Создание нового соединения')
                 try:
