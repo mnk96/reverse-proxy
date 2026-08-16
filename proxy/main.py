@@ -1,17 +1,13 @@
 import asyncio
 
-from config import config
+from config import settings
 from metrics import metrics_server
 from server import main_server
 
 
-async def main():
-    main_address = config['listen'].split(':')
-    metrics_address = config['metrics'].split(':')
-    proxy_task = asyncio.create_task(main_server(main_address[0],
-                                                 int(main_address[1])))
-    metrics_task = asyncio.create_task(metrics_server(metrics_address[0],
-                                                      int(metrics_address[1])))
+async def main() -> None:
+    proxy_task = asyncio.create_task(main_server(settings.listen.host, settings.listen.port))
+    metrics_task = asyncio.create_task(metrics_server(settings.metrics.host, settings.metrics.port))
 
     await asyncio.gather(proxy_task, metrics_task)
 

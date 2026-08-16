@@ -3,12 +3,22 @@
 target-version = "py314"
 # Максимальная длина строки
 line-length = 100
+# Ширина отступа
+indent-width = 4
 
 # Исключаемые директории
 exclude = [
     "venv",
     "__pycache__",
 ]
+
+[tool.ruff.format]
+# Символ для кавычек
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
 
 [tool.ruff.lint]
 # Набор правил
@@ -23,11 +33,23 @@ select = [
     "C4",  # flake8-comprehensions
     "SIM", # flake8-simplify
     "RUF", # Ruff-specific rules
+    "T10",  # flake8-debugger
     "T20", # flake8-print
     "ARG", # flake8-unused-arguments
     "PTH", # flake8-use-pathlib
+    "S",    # flake8-bandit
+    "BLE",  # flake8-blind-except
+    "PT",   # flake8-pytest-style
+    "DTZ",  # flake8-datetimez
+    "ERA",  # eradicate
+    "FURB", # refurb,
 ]
 
-ignore = [
-    "PTH123",   # замена open на Path.open
+# Ошибки, которые могут быть исправлены автоматически
+fixable = [
+    "I", # cортировка испортов
 ]
+
+# Дополнительные настройки для плагинов
+[lint.flake8-bandit]
+check-typed-exception = true # Проверка типизированных исключений

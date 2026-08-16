@@ -1,37 +1,51 @@
+from typing import TypedDict
+
 from logger import logger
 
 
-class HttpRequestParser:
+class RequestInfo(TypedDict):
+    method: str
+    path: str
+    version: str
+    headers: dict[str, str]
+    body: bytes
+    keep_alive: bool
+    is_valid: bool
+    content_length: int
+    end_request: bool
+
+
+class HttpMessageParser:
     """Минимальный парсер http запросов"""
+    ALLOWED_METHODS = ('GET', 'POST', 'DELETE') # методы, поддерживаемые апстримами
 
-    def __init__(self):
-        self.method = ''
-        self.path = ''
-        self.version = ''
-        self.headers = {}
-        self.body = ''
-        self.keep_alive = True
-        self.is_valid = True
-        self.content_length = 0
-        self.end_request = False
-        self.allowed_methods = {'GET', 'POST', 'PUT', 'DELETE'}
+    def __init__(self) -> None:
+        self.method: str = ''
+        self.path: str = ''
+        self.version: str = ''
+        self.headers: dict[str, str] = {}
+        self.body: bytes = b''
+        self.keep_alive: bool = True
+        self.is_valid: bool = True
+        self.content_length: int = 0
+        self.end_request: bool = False
 
-    def parse_start_line(self, line):
+    def parse_start_line(self, line: bytes) -> None:
         """Парсит первую строку для получения method, path, version"""
         try:
             parts = line.decode("utf-8").splitlines()[0].split(' ')
             self.method = parts[0]
             self.path = parts[1]
-            if (self.method.upper() not in  self.allowed_methods or
+            if (self.method.upper() not in self.ALLOWED_METHODS or
                 not self.path or not self.path.startswith('/')):
                 self.is_valid = False
             self.version = parts[2]
             if self.version != 'HTTP/1.1':
                 self.keep_alive = False
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.info('Ошибка получения данных из стартовой строки: %s', e)
 
-    def parse_headers(self, data):
+    def parse_headers(self, data: bytes) -> None:
         try:
             for line in data:
                 if b':' in line:
@@ -44,10 +58,11 @@ class HttpRequestParser:
                             self.keep_alive = False
                         elif header_info[1].lower() == 'keep-alive':
                             self.keep_alive = True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.info('Ошибка получения заголовков: %s', e)
 
-    def parser_status_code(self, data):
+    @staticmethod
+    def parser_status_code(data: bytes) -> None:
         try:
             lines = data.split(b'\r\n')
             if not lines:
@@ -58,10 +73,10 @@ class HttpRequestParser:
                 logger.info('Cтaтyca ответа: %s', string[1])
             else:
                 return
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.info('Ошибка получения статуса ответа: %s', e)
 
-    def request_parser(self, data):
+    def request_parser(self, data: bytes) -> RequestInfo:
         """Принимает данные и запускает обработку"""
         header_end = data.find(b'\r\n\r\n')
         if header_end != -1:
