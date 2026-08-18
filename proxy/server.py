@@ -40,7 +40,11 @@ class SemaphoreWithCounter:
 
 class ConnectionPool:
     """Пул соединений"""
-    def __init__(self, max_size: int, max_requests: int) -> None:
+    def __init__(
+            self,
+            max_size: int,
+            max_requests: int
+    ) -> None:
         self.max_size: int = max_size
         self.max_requests: int = max_requests
 
@@ -49,10 +53,12 @@ class ConnectionPool:
         self.semaphore: dict[str, Semaphore] = {}
         self.locks: dict[str, asyncio.Lock] = {}
 
-    def _make_conn_data(self,
-                        reader: StreamReader,
-                        writer: StreamWriter,
-                        address: str) -> ConnectionData:
+    def _make_conn_data(
+            self,
+            reader: StreamReader,
+            writer: StreamWriter,
+            address: str
+    ) -> ConnectionData:
         return {
             'reader': reader,
             'writer': writer,
@@ -62,7 +68,10 @@ class ConnectionPool:
             'address': address
         }
 
-    async def _safe_close(self, writer: StreamWriter) -> None:
+    async def _safe_close(
+            self,
+            writer: StreamWriter
+    ) -> None:
         try:
             writer.close()
             await writer.wait_closed()
@@ -92,7 +101,11 @@ class ConnectionPool:
                     logger.error('Ошибка создания начального соединения для %s: %s',
                                 address, e)
 
-    async def get_pool(self, host: str, port: str) -> tuple[StreamWriter, StreamReader]:
+    async def get_pool(
+            self,
+            host: str,
+            port: str
+    ) -> tuple[StreamWriter, StreamReader]:
         """Получение соединения из пула или создание нового"""
         address = f'{host}:{port}'
         if address not in self.pools:
@@ -144,7 +157,10 @@ class ConnectionPool:
                                 self.semaphore[address].value)
                     raise ValueError('Ошибка создания соединения')  # noqa: B904
 
-    def check_connection_alive(self, writer: StreamReader) -> bool:
+    def check_connection_alive(
+            self,
+            writer: StreamReader
+    ) -> bool:
         """Проверка живо ли соединение"""
         try:
             sock = writer.get_extra_info('socket')
@@ -154,7 +170,11 @@ class ConnectionPool:
         except Exception:  # noqa: BLE001
             return False
 
-    async def put_back_pool(self, writer: StreamWriter, reader: StreamReader|None=None) -> None:
+    async def put_back_pool(
+            self,
+            writer: StreamWriter,
+            reader: StreamReader|None=None
+    ) -> None:
         """Возвращает соединение в пулл после использования"""
         if writer not in self.active_conns:
             logger.info('Попытка вернуть неизвестное соединение')
@@ -196,9 +216,11 @@ class RoundRobin:
 round_robin = RoundRobin()
 
 
-async def client_connected(client_reader: StreamReader,
-                           client_writer: StreamWriter,
-                           connection_pool: ConnectionPool) -> None:
+async def client_connected(
+        client_reader: StreamReader,
+        client_writer: StreamWriter,
+        connection_pool: ConnectionPool
+) -> None:
     """Обработчик клиeнтa c поддержкой keep-alive"""
     address = client_writer.get_extra_info('peername')
     upstream_writer, upstream_reader = None, None
@@ -289,7 +311,10 @@ async def client_connected(client_reader: StreamReader,
         logger.info('Клиент отключен %s', address)
 
 
-async def main_server(host: str, port: int) -> None:
+async def main_server(
+        host: str,
+        port: int
+) -> None:
     connection_pool = ConnectionPool(settings.max_size_conn,
                                      settings.limits.max_conns_per_upstream)
     await connection_pool.start()

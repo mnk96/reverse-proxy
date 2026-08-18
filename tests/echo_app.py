@@ -32,7 +32,10 @@ async def home(request: Request) -> Response:
 
 
 @app.get('/{parametr}')
-async def get_parametr(parametr: str, request: Request) -> Response:
+async def get_parametr(
+        parametr: str,
+        request: Request
+) -> Response:
     response_data = {
                 'method': request.method,
                 'path': request.url.path,

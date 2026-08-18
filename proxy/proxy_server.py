@@ -11,10 +11,12 @@ from request_parser import HttpMessageParser
 SEMAPHORE = Semaphore(settings.limits.max_conns_per_upstream)
 
 
-async def proxy_server(reader: StreamReader,
-                       writer: StreamWriter,
-                       backend: str,
-                       description: str) -> None:
+async def proxy_server(
+        reader: StreamReader,
+        writer: StreamWriter,
+        backend: str,
+        description: str
+) -> None:
     async with SEMAPHORE:
         start_time = time.time()
         logger.info("Семафор апстрима захвачен (свободно: %s)", SEMAPHORE._value)

@@ -25,7 +25,10 @@ def backend_metrics_request(backend: str) -> None:
                                             metrics_list[backend]['all_time'])
 
 
-def backend_metrics_time(backend: str, time: time) -> None:
+def backend_metrics_time(
+        backend: str,
+        time: time
+) -> None:
     metrics_list.setdefault(backend, {'request': 0, 'all_time': 0, 'rps': 0})
     if backend not in metrics_list:
         metrics_list[backend]['all_time'] = {
@@ -39,7 +42,10 @@ def backend_metrics_time(backend: str, time: time) -> None:
                                         metrics_list[backend]['all_time'])
 
 
-async def handle_metrics(reader: StreamReader, writer: StreamWriter) -> None:
+async def handle_metrics(
+        reader: StreamReader,
+        writer: StreamWriter
+) -> None:
     """Обработчик запросов к получению метрик"""
     address = writer.get_extra_info('peername')
     logger.info('Запрос метрик от %s', address)
@@ -58,7 +64,10 @@ async def handle_metrics(reader: StreamReader, writer: StreamWriter) -> None:
         await writer.wait_closed()
 
 
-async def metrics_server(host: str, port: int) -> None:
+async def metrics_server(
+        host: str,
+        port: int
+) -> None:
     server = await asyncio.start_server(handle_metrics, host, port)
     logger.info('Сервер метрик запущен')
 

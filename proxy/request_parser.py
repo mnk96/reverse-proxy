@@ -30,7 +30,10 @@ class HttpMessageParser:
         self.content_length: int = 0
         self.end_request: bool = False
 
-    def parse_start_line(self, line: bytes) -> None:
+    def parse_start_line(
+            self,
+            line: bytes
+    ) -> None:
         """Парсит первую строку для получения method, path, version"""
         try:
             parts = line.decode("utf-8").splitlines()[0].split(' ')
@@ -45,7 +48,10 @@ class HttpMessageParser:
         except Exception as e:  # noqa: BLE001
             logger.info('Ошибка получения данных из стартовой строки: %s', e)
 
-    def parse_headers(self, data: bytes) -> None:
+    def parse_headers(
+            self,
+            data: bytes
+    ) -> None:
         try:
             for line in data:
                 if b':' in line:
@@ -76,7 +82,10 @@ class HttpMessageParser:
         except Exception as e:  # noqa: BLE001
             logger.info('Ошибка получения статуса ответа: %s', e)
 
-    def request_parser(self, data: bytes) -> RequestInfo:
+    def request_parser(
+            self,
+            data: bytes
+    ) -> RequestInfo:
         """Принимает данные и запускает обработку"""
         header_end = data.find(b'\r\n\r\n')
         if header_end != -1:

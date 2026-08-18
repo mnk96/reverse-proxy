@@ -34,7 +34,10 @@ class LoggingConfig(BaseModel):
 
     @field_validator('level')
     @classmethod
-    def validate_log_level(cls, v: str) -> str:
+    def validate_log_level(
+            cls,
+            v: str
+    ) -> str:
         level = v.upper()
         if level not in logging._nameToLevel:
             raise ValueError(f"Неизвестный уровень логирования: {v}")
@@ -54,7 +57,10 @@ class Settings(BaseSettings):
 
     @model_validator(mode='before')
     @classmethod
-    def preprocess_string_addresses(cls, values: dict) -> dict:
+    def preprocess_string_addresses(
+            cls,
+            values: dict
+    ) -> dict:
         """Преобразует строки listen и metrics в словари для Address."""
         for key in ('listen', 'metrics'):
             if key in values and isinstance(values[key], str):
