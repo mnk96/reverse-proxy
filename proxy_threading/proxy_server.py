@@ -16,9 +16,11 @@ SEMAPHORE = Semaphore(settings.limits.max_conns_per_upstream)
 
 def proxy_server(
         sock: socket.socket,
+        sock2: socket.socket,
         backend: str,
         description: str
 ) -> None:
+    print('fgsehr')
     with SEMAPHORE:
         start_time = time.time()
         logger.info("Семафор апстрима захвачен (свободно: %s)", SEMAPHORE._value)
@@ -30,7 +32,7 @@ def proxy_server(
                     break
                 if description == 'апстрим':
                     HttpMessageParser.parser_status_code(data)
-                sock.sendall(data)
+                sock2.sendall(data)
                 if data:
                     logger.info('%s: Отправлено %s байт', description,
                                 len(data))

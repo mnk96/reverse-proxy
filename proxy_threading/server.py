@@ -60,7 +60,7 @@ class ConnectionPool:
             address: str
     ) -> ConnectionData:
         return {
-            'sock': socket.socket,
+            'sock': sock,
             'last_used': time.time(),
             'created': time.time(),
             'request_count': 0,
@@ -73,7 +73,6 @@ class ConnectionPool:
     ) -> None:
         try:
             sock.close()
-            # await writer.wait_closed()
             logger.info('Соединение закрыто')
         except Exception as e:  # noqa: BLE001
             logger.error('Ошибка закрытия соединения: %s', e)
@@ -120,6 +119,7 @@ class ConnectionPool:
                     conn_data = pool[0]
                     sock = conn_data['sock']
                     # Проверяем, что соединение живо и не используется
+                    print(self.active_conns)
                     if self.check_connection_alive(sock) and sock not in self.active_conns:
                         conn_data['last_used'] = time.time()
                         conn_data['request_count'] += 1
@@ -216,6 +216,7 @@ def client_connected(
 ) -> None:
     """Обработчик клиeнтa c поддержкой keep-alive"""
     address = client_sock.getpeername()
+    client_sock.setblocking(True)
     upstream_socket = None
     logger.info('Клиент подключен %s', address)
     try:
@@ -227,53 +228,60 @@ def client_connected(
         logger.info("Подключено к апстриму %s", upstream_address)
         address = upstream_address[0]
         backend_metrics_request(address)
-        keep_alive = True
-        while keep_alive:
-            header_end = -1
-            headers_data = b''
-            parser = HttpMessageParser()
-            while header_end == -1:
-                data = client_sock.recv(settings.chunk_size)
-                if not data:
-                    logger.info('Клиент закрыл соединение')
-                    headers_data = b''
-                    body_data = b''
-                    keep_alive = False
-                    break
-                headers_data += data
-                header_end = headers_data.find(b'\r\n\r\n')
-            request_info = parser.request_parser(headers_data)
-            content_length = request_info['content_length']
-            body_data = headers_data[header_end+4:]
-            while len(body_data) < content_length:
-                data = client_sock.recv(settings.chunk_size)
-                if not data:
-                    logger.info('Клиент закрыл соединение')
-                    headers_data = b''
-                    body_data = b''
-                    keep_alive = False
-                    break
-                body_data += data
-            if not keep_alive:
-                break
-            parser = HttpMessageParser()
-            request_info = parser.request_parser(headers_data[:header_end+4] + body_data)
-            valid_request = request_info['is_valid']
-            keep_alive = request_info['keep_alive']
-            if not valid_request:
-                logger.info('Невалидный запрос')
-                keep_alive = False
-                break
-            upstream_socket.sendall(headers_data[:header_end+4] + body_data)
-            keep_alive = request_info['keep_alive']
-            client_task = threading.Thread(target=proxy_server, args=(client_sock, address, 'клиент'))
-            upstrem_task = threading.Thread(target=proxy_server, args=(upstream_socket, address, 'апстрим'))
-            client_task.start()
-            upstrem_task.start()
-            client_task.join()
-            upstrem_task.join()
-            if not keep_alive:
-                break
+        # keep_alive = True
+        # while keep_alive:
+        #     header_end = -1
+        #     headers_data = b''
+        #     # parser = HttpMessageParser()
+        #     print('1234')
+            # while header_end == -1:
+            #     try:
+            #         print(client_sock)
+            #         data = client_sock.recv(1024)
+            #         print(data)
+            #         if not data:
+            #             logger.info('Клиент закрыл соединение')
+            #             headers_data = b''
+            #             body_data = b''
+            #             keep_alive = False
+            #             break
+            #         headers_data += data
+            #         header_end = headers_data.find(b'\r\n\r\n')
+            #     except Exception as e:
+            #         print('ошибка', e)
+            # print('444')
+            # request_info = parser.request_parser(headers_data)
+            # content_length = request_info['content_length']
+            # body_data = headers_data[header_end+4:]
+            # while len(body_data) < content_length:
+            #     data = client_sock.recv(settings.chunk_size)
+            #     if not data:
+            #         logger.info('Клиент закрыл соединение')
+            #         headers_data = b''
+            #         body_data = b''
+            #         keep_alive = False
+            #         break
+            #     body_data += data
+            # if not keep_alive:
+            #     break
+            # parser = HttpMessageParser()
+            # request_info = parser.request_parser(headers_data[:header_end+4] + body_data)
+            # valid_request = request_info['is_valid']
+            # keep_alive = request_info['keep_alive']
+            # if not valid_request:
+            #     logger.info('Невалидный запрос')
+            #     keep_alive = False
+            #     break
+            # upstream_socket.sendall(headers_data[:header_end+4] + body_data)
+            # keep_alive = request_info['keep_alive']
+        client_task = threading.Thread(target=proxy_server, args=(client_sock, upstream_socket, address, 'клиент'))
+        upstrem_task = threading.Thread(target=proxy_server, args=(upstream_socket,client_sock, address, 'апстрим'))
+        client_task.start()
+        upstrem_task.start()
+        client_task.join()
+        upstrem_task.join()
+            # if not keep_alive:
+            #     break
     except TimeoutError:
         logger.error('Запрос превысил лимит времени')
     except Exception as e:  # noqa: BLE001
@@ -299,13 +307,15 @@ def main_server(
     connection_pool.start()
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    print(host, port)
     server_socket.bind((host, port))
     server_socket.listen(5)
     logger.info('Сервер запущен')
     while True:
         client_socket, address = server_socket.accept()
-        message = client_socket.recv(1024).decode('utf-8')
-        print(f"Получено сообщение: {message}")
+        print()
+        # message = client_socket.recv(1024).decode('utf-8')
+        # print(f"Получено сообщение: {message}")
         print(client_socket, address)
         client_thread = threading.Thread(target=client_connected, args=(client_socket, connection_pool))
         client_thread.daemon = True
